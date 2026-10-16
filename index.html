@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Примерь чапан</title>
+<style>
+  :root{--gold:#f2b705;--red:#c8102e;--ink:#1a1210}
+  *{box-sizing:border-box;margin:0}
+  html,body{height:100%;background:#000;color:#fff;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden}
+  #stage{position:fixed;inset:0}
+  video{display:none}
+  canvas#view{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);display:block}
+  .top{position:fixed;top:0;left:0;right:0;padding:calc(env(safe-area-inset-top,0px) + 14px) 18px 28px;text-align:center;
+    background:linear-gradient(#000c,#0000);font-size:clamp(16px,4.6vw,24px);font-weight:700;line-height:1.3;text-shadow:0 1px 6px #000}
+  .top b{color:var(--gold)}
+  .bottom{position:fixed;left:0;right:0;bottom:0;padding:34px 16px calc(env(safe-area-inset-bottom,0px) + 16px);
+    background:linear-gradient(#0000,#000d 35%)}
+  form{max-width:440px;margin:0 auto;display:flex;flex-direction:column;gap:10px}
+  input{width:100%;padding:14px 16px;border-radius:12px;border:2px solid #fff3;background:#000a;color:#fff;font-size:16px;outline:none}
+  input:focus{border-color:var(--gold)}
+  button.main{padding:15px;border:0;border-radius:12px;background:linear-gradient(90deg,var(--red),#e8632b);color:#fff;font-size:17px;font-weight:700;cursor:pointer}
+  button.main:disabled{opacity:.6}
+  #msg{text-align:center;font-size:14px;min-height:18px}
+  #hint{position:fixed;left:0;right:0;top:50%;transform:translateY(-50%);text-align:center;padding:0 30px;font-size:17px;text-shadow:0 1px 6px #000;pointer-events:none}
+  #camBtn{display:none;position:fixed;left:50%;top:45%;transform:translate(-50%,-50%);padding:14px 22px;border:0;border-radius:12px;background:var(--gold);color:var(--ink);font-weight:700;font-size:16px}
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="view"></canvas></div>
+<video id="cam" playsinline muted></video>
+
+<div class="top">Примерь чапан, <b>отметь нас в Instagram</b><br>и автоматически стань участником розыгрыша!</div>
+<div id="hint">Загружаем камеру…</div>
+<button id="camBtn">Включить камеру</button>
+
+<div class="bottom">
+  <form id="form" autocomplete="on">
+    <input id="name" name="name" placeholder="Ваше имя" required autocomplete="name">
+    <input id="phone" name="phone" type="tel" placeholder="+998 __ ___ __ __" required autocomplete="tel" inputmode="tel">
+    <button class="main" id="send" type="submit">Участвовать в розыгрыше</button>
+    <div id="msg"></div>
+  </form>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>
+<script>
+/* ======= НАСТРОЙКА: вставьте сюда URL веб-приложения Google Apps Script ======= */
+const SCRIPT_URL = "ВСТАВЬТЕ_URL_APPS_SCRIPT";
+
+/* ---------- Форма ---------- */
+const form = document.getElementById('form'), msg = document.getElementById('msg'), sendBtn = document.getElementById('send');
+const phone = document.getElementById('phone');
+phone.addEventListener('focus', () => { if (!phone.value) phone.value = '+998 '; });
+phone.addEventListener('input', () => {
+  let d = phone.value.replace(/\D/g, '');
+  if (!d.startsWith('998')) d = '998' + d.replace(/^998?/, '');
+  d = d.slice(0, 12);
+  const p = [d.slice(0,3), d.slice(3,5), d.slice(5,8), d.slice(8,10), d.slice(10,12)].filter(Boolean);
+  phone.value = '+' + p.join(' ');
+});
+form.addEventListener('submit', async e => {
+  e.preventDefault();
+  const name = form.name.value.trim(), tel = phone.value.trim();
+  if (tel.replace(/\D/g,'').length < 12) { msg.textContent = 'Введите номер полностью'; return; }
+  sendBtn.disabled = true; msg.textContent = 'Отправляем…';
+  try {
+    await fetch(SCRIPT_URL, { method:'POST', mode:'no-cors',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ name, phone: tel, date: new Date().toISOString() }) });
+    msg.textContent = '🎉 Вы в розыгрыше! Не забудьте отметить нас в Instagram.';
+    form.reset();
+  } catch (err) { msg.textContent = 'Ошибка отправки, попробуйте ещё раз'; }
+  sendBtn.disabled = false;
+});
+
+/* ---------- Текстура чапана (абровый икат) ---------- */
+const pat = document.createElement('canvas'); pat.width = pat.height = 140;
+(function(){
+  const c = pat.getContext('2d'), cols = ['#c8102e','#f2b705','#0b3d91','#12805c','#f5efe0','#7a1fa2','#e8632b'];
+  const sw = 20;
+  for (let i = 0; i < 7; i++) { c.fillStyle = cols[i]; c.fillRect(i*sw, 0, sw, 140); }
+  // зубчатые края «ikat»
+  for (let i = 1; i < 7; i++) for (let y = 0; y < 140; y += 14) {
+    c.fillStyle = cols[i-1]; c.beginPath();
+    c.moveTo(i*sw, y); c.lineTo(i*sw + 8, y + 7); c.lineTo(i*sw, y + 14); c.fill();
+    c.fillStyle = cols[i]; c.beginPath();
+    c.moveTo(i*sw, y+7); c.lineTo(i*sw - 6, y + 14); c.lineTo(i*sw, y + 14); c.fill();
+  }
+  c.fillStyle = '#0003'; for (let y = 0; y < 140; y += 28) c.fillRect(0, y, 140, 2);
+})();
+
+/* ---------- Камера и Pose ---------- */
+const video = document.getElementById('cam'), cv = document.getElementById('view'), ctx = cv.getContext('2d');
+const hint = document.getElementById('hint'), camBtn = document.getElementById('camBtn');
+let pattern, sm = null, lastSeen = 0;
+
+async function startCam() {
+  camBtn.style.display = 'none'; hint.textContent = 'Загружаем камеру…';
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'user', width:{ideal:1280}, height:{ideal:720} }, audio:false });
+    video.srcObject = stream; await video.play();
+  } catch (e) { hint.textContent = 'Нет доступа к камере. Разрешите её в настройках браузера.'; camBtn.style.display = 'block'; return; }
+  cv.width = video.videoWidth; cv.height = video.videoHeight;
+  pattern = ctx.createPattern(pat, 'repeat');
+  const pose = new Pose({ locateFile: f => 'https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/' + f });
+  pose.setOptions({ modelComplexity:1, smoothLandmarks:true, minDetectionConfidence:.5, minTrackingConfidence:.5 });
+  pose.onResults(render);
+  hint.textContent = 'Встаньте так, чтобы было видно плечи и корпус';
+  (async function loop(){ await pose.send({ image: video }); requestAnimationFrame(loop); })();
+}
+camBtn.onclick = startCam;
+startCam();
+
+const lerp = (a,b,t) => a + (b - a) * t;
+function render(res) {
+  const W = cv.width, H = cv.height;
+  ctx.drawImage(video, 0, 0, W, H);
+  const lm = res.poseLandmarks;
+  if (!lm) { if (Date.now() - lastSeen > 1500) hint.style.opacity = 1; return; }
+  const need = [11,12,23,24];
+  if (need.some(i => lm[i].visibility < .4)) { hint.style.opacity = 1; return; }
+  hint.style.opacity = 0; lastSeen = Date.now();
+  const cur = lm.map(p => ({ x:p.x*W, y:p.y*H }));
+  sm = sm ? sm.map((p,i) => ({ x:lerp(p.x,cur[i].x,.55), y:lerp(p.y,cur[i].y,.55) })) : cur;
+  drawChapan(sm, lm);
+}
+
+function drawChapan(p, lm) {
+  const mid = (a,b) => ({ x:(a.x+b.x)/2, y:(a.y+b.y)/2 });
+  const grow = (pt, c, k) => ({ x:c.x + (pt.x-c.x)*k, y:c.y + (pt.y-c.y)*k });
+  const sM = mid(p[11], p[12]), hM = mid(p[23], p[24]);
+  const sw = Math.hypot(p[11].x-p[12].x, p[11].y-p[12].y);
+  const down = { x:hM.x-sM.x, y:hM.y-sM.y };
+  const sL = grow(p[11], sM, 1.3), sR = grow(p[12], sM, 1.3);
+  const hL = grow(p[23], hM, 1.6), hR = grow(p[24], hM, 1.6);
+  const eL = { x:hL.x + down.x*1.25, y:hL.y + down.y*1.25 }, eR = { x:hR.x + down.x*1.25, y:hR.y + down.y*1.25 };
+  const hemM = { x:hM.x + down.x*1.25, y:hM.y + down.y*1.25 };
+  const neck = { x:sM.x - down.x*.08, y:sM.y - down.y*.08 };
+  const hemFlare = 1.12;
+
+  // рукава (рисуем первыми, чтобы полы были сверху)
+  const sleeve = (s, e, w, i) => {
+    const vis = lm[e].visibility > .3 && lm[w].visibility > .3;
+    const E = vis ? p[e] : { x:p[s].x + (p[s].x - sM.x)*.2, y:p[s].y + down.y*.6 };
+    const Wr = vis ? p[w] : { x:E.x, y:E.y + down.y*.6 };
+    const ext = { x:Wr.x + (Wr.x-E.x)*.35, y:Wr.y + (Wr.y-E.y)*.35 };
+    const S = grow(p[s], sM, 1.15);
+    for (const [col, lw, fill] of [['#1a1210', sw*.46, 0], [null, sw*.38, 1]]) {
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = lw;
+      ctx.strokeStyle = fill ? pattern : col;
+      ctx.beginPath(); ctx.moveTo(S.x, S.y); ctx.lineTo(E.x, E.y); ctx.lineTo(ext.x, ext.y); ctx.stroke();
+    }
+    ctx.lineWidth = sw*.07; ctx.strokeStyle = '#f2b705';
+    ctx.beginPath(); ctx.arc(ext.x, ext.y, sw*.19, 0, 7); ctx.stroke(); // манжета
+  };
+  ctx.save();
+  sleeve(11, 13, 15); sleeve(12, 14, 16);
+
+  // корпус
+  const body = () => {
+    ctx.beginPath(); ctx.moveTo(neck.x, neck.y);
+    ctx.lineTo(sL.x, sL.y); ctx.lineTo(hL.x, hL.y);
+    ctx.lineTo(grow(eL, hemM, hemFlare).x, grow(eL, hemM, hemFlare).y);
+    ctx.lineTo(grow(eR, hemM, hemFlare).x, grow(eR, hemM, hemFlare).y);
+    ctx.lineTo(hR.x, hR.y); ctx.lineTo(sR.x, sR.y); ctx.closePath();
+  };
+  body(); ctx.fillStyle = pattern; ctx.fill();
+  const g = ctx.createLinearGradient(0, sM.y, 0, hemM.y);
+  g.addColorStop(0, '#0000'); g.addColorStop(1, '#0006');
+  body(); ctx.fillStyle = g; ctx.fill();
+  ctx.lineWidth = sw*.05; ctx.strokeStyle = '#1a1210'; ctx.lineJoin = 'round'; body(); ctx.stroke();
+
+  // борт: тёмная полоса с золотой каймой
+  ctx.lineCap = 'butt';
+  ctx.strokeStyle = '#f2b705'; ctx.lineWidth = sw*.17;
+  ctx.beginPath(); ctx.moveTo(neck.x, neck.y); ctx.lineTo(hemM.x, hemM.y); ctx.stroke();
+  ctx.strokeStyle = '#2a0f10'; ctx.lineWidth = sw*.11;
+  ctx.beginPath(); ctx.moveTo(neck.x, neck.y); ctx.lineTo(hemM.x, hemM.y); ctx.stroke();
+
+  // воротник/кант по плечам
+  ctx.strokeStyle = '#2a0f10'; ctx.lineWidth = sw*.1; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(sL.x, sL.y); ctx.lineTo(neck.x, neck.y); ctx.lineTo(sR.x, sR.y); ctx.stroke();
+
+  // пояс (кушак)
+  const wL = { x:hL.x - down.x*.15, y:hL.y - down.y*.15 }, wR = { x:hR.x - down.x*.15, y:hR.y - down.y*.15 };
+  ctx.lineWidth = sw*.14; ctx.strokeStyle = '#8b0f1f';
+  ctx.beginPath(); ctx.moveTo(wL.x, wL.y); ctx.lineTo(wR.x, wR.y); ctx.stroke();
+  ctx.lineWidth = sw*.03; ctx.strokeStyle = '#f2b705';
+  ctx.beginPath(); ctx.moveTo(wL.x, wL.y); ctx.lineTo(wR.x, wR.y); ctx.stroke();
+  ctx.restore();
+}
+</script>
+</body>
+</html>
